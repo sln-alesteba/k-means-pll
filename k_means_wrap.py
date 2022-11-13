@@ -1,5 +1,3 @@
-from k_means_pll import *
-
 from multiprocessing.dummy import Pool
 
 # class wrapper:
