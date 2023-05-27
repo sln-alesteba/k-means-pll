@@ -9,10 +9,14 @@ import operator
 import random
 import numpy as np
 
+# darle estilo al algoritmo
+# acabar cabeceras y demás;
 
 def init_centroid_single(datos):
 
     min_, max_ = np.min(datos, axis=0), np.max(datos, axis=0)
+
+    return np.array( random.uniform(min_, max_) )
 
 def init_centroids_random(datos, k):
     """ init centroids completely random """
@@ -53,18 +57,23 @@ def init_centroids_best_inertia(datos, k, rand_iters, dist_func):
 
     return centroids, clusters
 
-def centroid_coords(cluster):
+def centroid_coords(datos, cluster):
     """ centroid coordinates based on the clusters points (mean of those points)"""
 
-    if (len(cluster) <= 1) : return np.array([-1])
+    #if (len(cluster) <= 1) : return np.array([-1])
+
+    # random centroid :
+    if (len(cluster) <= 1) :
+
+      return init_centroid_single(datos)
 
     # return directly numpy array
     return np.mean(cluster, axis=0)
 
-def centroids_recalculate(clusters):
+def centroids_recalculate(datos, clusters):
     """calculate new centroids based on cluster data"""
 
-    return np.array ( [centroid_coords(cluster) for cluster in clusters] )
+    return np.array ( [centroid_coords(datos, cluster) for cluster in clusters] )
 
 def centroid_points_dist(point, centroides, dist_func):
     """ distance of concrete data point to each of the centroids """
@@ -94,35 +103,38 @@ def centroid_asignment(datos, centroides, dist_func):
 
     return label_mask, loss
 
-def centroid_asignment_parallel(datos, splits, centroides, dist_func):
+def centroid_asignment_parallel(datos, splits, map_func, centroides, dist_func):
 
     # split data with numpy
 
     splitted = np.array_split(datos, splits)
 
-    # create pool
-
-    pool = multiprocessing.Pool(splits)
-
     # create the header needed to work with startmap
 
-    params = []
-    for x in range(splits):
-        params.append([splitted[x], centroides, dist_func])
+    # params = []
+    # for x in range(splits):
+    #     params.append([splitted[x], centroides, dist_func])
 
     # the result is ordered -> startmap return ordered results
     # independientemente de que se ejecute en paralelo
 
-    result = pool.starmap(centroid_asignment, params)
+    def pll_centroid_asg (params):
 
-    pool.close()
-    pool.join()
+      datos, centroids, dist_func = params
+      
+      # implementar tqdm para visualizar la ejecución y ver lo que pasa:
+      # decidir usar o no;
+      return centroid_asignment(datos, centroids, dist_func)
+
+    result = map_func(pll_centroid_asg, [ [splitted[x], centroides, dist_func] for x in range(splits) ] )
 
     # cluster-asignment function returns two values, 
     # concatenate and create the needed shape.
 
-    res_masks = [res[0] for res in result]
-    res_inert = [res[1] for res in result] # inertias for differnt splits
+    # res_masks = [res[0] for res in result]
+    # res_inert = [res[1] for res in result] # inertias for differnt splits
+
+    res_masks, res_inert = list(zip(*result))
 
     # the final inertia is the mean of the partial inertias
     loss = sum(res_inert) / splits 
@@ -130,7 +142,6 @@ def centroid_asignment_parallel(datos, splits, centroides, dist_func):
     label_mask = np.array(res_masks).reshape(-1)
 
     return label_mask, loss
-
 
 def point_labels_to_clusters(datos, label_mask, k):
 
@@ -155,12 +166,11 @@ def point_labels_to_clusters(datos, label_mask, k):
     # Es decir: [[(punto1),(punto7),(punto8)], [...,...]] donde cada sublista 
     # tiene los puntos de ese cluster
 
-
 def loop_until_equal_centroids(
     
     datos, clusters, centroides, 
     max_iters, abs_tol, rel_tol, 
-    dist_func, splits):
+    dist_func, splits, map_func):
 
     """ loop behaviour, stop based on max_iters, or based on inertia """
 
@@ -170,7 +180,7 @@ def loop_until_equal_centroids(
 
             ### PROCESS TO PARALELL -> cluster asignment
 
-            label_mask, loss = centroid_asignment_parallel(datos, splits, centroides, dist_func)
+            label_mask, loss = centroid_asignment_parallel(datos, splits, map_func, centroides, dist_func)
 
         else:
 
@@ -180,7 +190,7 @@ def loop_until_equal_centroids(
 
         clusters = point_labels_to_clusters(datos, label_mask, k=len(centroides))
 
-        centroides = centroids_recalculate(clusters)
+        centroides = centroids_recalculate(datos, clusters)
 
         for c in range(len(centroides)):
             
