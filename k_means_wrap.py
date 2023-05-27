@@ -14,7 +14,7 @@ class KMeans_UR():
         rand_iters=10, max_iters=100, 
         abs_tol=1e-16, rel_tol=1e-16, 
         dist_func=_default_distance,
-        splits = 0):
+        splits = 0, map_func = None):
 
         self.k = k
 
@@ -26,6 +26,7 @@ class KMeans_UR():
 
         self.dist_func = dist_func
         self.splits = splits #for parallel use
+        self.map_func = map_func
 
     def fit(self, data):
 
@@ -58,7 +59,8 @@ class KMeans_UR():
             self.max_iters, 
             self.abs_tol, self.rel_tol, 
             self.dist_func,
-            self.splits
+            self.splits,
+            self.map_func
         )
 
     def centroids(self):
